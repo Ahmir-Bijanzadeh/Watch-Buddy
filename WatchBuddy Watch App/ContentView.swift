@@ -3,15 +3,19 @@
 import SwiftUI
 import SpriteKit
 
+// Assuming you have a PetGameScene.swift, but its content is not directly relevant to the core logic.
+// For this change, we'll focus on ContentView and PetModel.
+
 struct ContentView: View {
     @StateObject private var pet = PetModel()
-    @StateObject private var healthManager = HealthManager()
-
+    @StateObject private var healthManager = HealthManager() // Corrected: Added @StateObject
     @State private var lastMood: PetMood = .idle
-    private let scene = PetGameScene()
+    private let scene = PetGameScene() // Keep this, but we might not use mood changes here.
 
     @State private var tapFeedbackMessage: String? = nil
     @State private var showingRenameSheet = false
+    // NEW: State variable to hold the current mood's emoji.
+    @State private var moodEmoji: String = "😐"
 
     var body: some View {
         NavigationStack {
@@ -25,33 +29,39 @@ struct ContentView: View {
                         }
 
                     ZStack(alignment: .top) {
+                        // 1. SpriteView for the pet animation (idle only).
                         SpriteView(scene: scene)
                             .frame(height: geometry.size.height * 0.65)
                             .cornerRadius(10)
                             .onAppear {
-                                healthManager.requestAuthorization { success in
+                                healthManager.requestAuthorization { success in // Corrected: Added trailing closure
                                     if success {
                                         print("✅ HealthKit authorized")
                                         // Update to include sleepHours in fetchTodayActivity
                                         healthManager.fetchTodayActivity { run, swim, cycle, sleepHours in
                                             print("🏃‍♂️ Running: \(run)m, 🏊‍♀️ Swimming: \(swim)m, 🚴‍♂️ Cycling: \(cycle)m, 😴 Sleep: \(sleepHours)h")
                                             pet.updateFromHealthKit(running: run, swimming: swim, cycling: cycle, sleepHours: sleepHours)
-                                                                                        }
+                                        }
                                     } else {
                                         print("❌ HealthKit not authorized")
                                     }
                                 }
 
-                                // Mood setup + timer
-                                scene.setMood(pet.derivedMood, force: true)
+                                // Mood setup + timer.  Set initial mood.
+                                scene.setMood(.idle, force: true) //Set to idle
                                 lastMood = pet.derivedMood
-                                startMoodSyncLoop(for: scene)
+                                updateMoodEmoji() // Initial emoji update
+                                startMoodSyncLoop() // Start the timer *without* passing scene
                             }
                             .contentShape(Rectangle()) // Make entire area tappable
                             .onTapGesture {
                                 performActiveAction()
                             }
-
+                        // 2. Display the mood emoji.
+                        Text(moodEmoji)
+                            .font(.system(size: 50)) // Adjust size as needed.
+                            //.offset(y: geometry.size.height * 0.2) // dead center placement
+                            .offset(x: geometry.size.width * -0.33, y: geometry.size.height * 0.3) // NEW offset to bottom left.
                         if let message = tapFeedbackMessage {
                             Text(message)
                                 .font(.headline)
@@ -66,7 +76,7 @@ struct ContentView: View {
                                         tapFeedbackMessage = nil
                                     }
                                 }
-                                .offset(y: 10) // Adjust position
+                                .offset(x: geometry.size.width * 0.33, y: geometry.size.height * 0.1) // Adjust position
                         }
                     }
 
@@ -106,7 +116,7 @@ struct ContentView: View {
                         NavigationLink {
                             PetControlView(pet: pet, gameScene: scene)
                         } label: {
-                            Text("Interact")
+                            Text("Menu")
                                 .font(.headline)
                                 .padding(.vertical, 8)
                                 .frame(maxWidth: .infinity)
@@ -184,17 +194,33 @@ struct ContentView: View {
         }
     }
 
-    func startMoodSyncLoop(for scene: PetGameScene) {
+    // 2.  Timer function to update mood.
+    func startMoodSyncLoop() { // Removed 'for scene:' parameter
         Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
             pet.degradeStats()
 
-            let derived = pet.derivedMood
-            if derived != lastMood {
-                scene.setMood(derived)
-                lastMood = derived
-            } else {
-                scene.setMood(derived, force: true)
+            let derivedMood = pet.derivedMood
+            if derivedMood != lastMood {
+                lastMood = derivedMood
+                updateMoodEmoji() // Update the emoji
+                // No need to call scene.setMood here anymore.
             }
+        }
+    }
+
+    // 3. Function to update the mood emoji based on the pet's derivedMood.
+    private func updateMoodEmoji() {
+        switch pet.derivedMood {
+        case .idle:
+            moodEmoji = "😐"
+        case .happy:
+            moodEmoji = "😊"
+        case .hungry:
+            moodEmoji = "😩"
+        case .sleepy:
+            moodEmoji = "😴"
+        case .angry:
+            moodEmoji = "😡"
         }
     }
 }

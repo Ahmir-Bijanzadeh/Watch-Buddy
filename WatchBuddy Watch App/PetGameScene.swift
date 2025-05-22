@@ -12,7 +12,7 @@ class PetGameScene: SKScene {
     private let petZPosition: CGFloat = 10
 
     override func sceneDidLoad() {
-        backgroundColor = .white
+        backgroundColor = .black
         self.scaleMode = .aspectFit
         setupScene()
 

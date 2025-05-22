@@ -3,16 +3,13 @@
 import SwiftUI
 
 struct ShopView: View {
-    @ObservedObject var pet: PetModel // ShopView needs to observe PetModel
+    @ObservedObject var pet: PetModel
 
-    // State variables to control the presentation of PurchaseQuantityView
     @State private var showingPurchaseSheet = false
     @State private var itemNameToPurchase: String = ""
     @State private var itemPriceToPurchase: Int = 0
-    @State private var maxQuantityToPurchase: Int = 1 // Initial placeholder
-    @State private var currentSelectionIsFood: Bool = true // To differentiate food vs. toy purchase
+    @State private var maxQuantityToPurchase: Int = 100
 
-    // Helper to get prices based on the order of items
     private func price(forFoodType type: FoodType) -> Int {
         switch type {
         case .kibble: return 10
@@ -29,12 +26,6 @@ struct ShopView: View {
         }
     }
 
-    // NEW: Helper to calculate the maximum quantity the user can afford
-    private func calculateMaxQuantity(pricePerUnit: Int) -> Int {
-        guard pricePerUnit > 0 else { return 0 } // Prevent division by zero
-        return pet.petPoints / pricePerUnit
-    }
-
     var body: some View {
         TabView {
             // Tab 1: Currency Info
@@ -43,87 +34,64 @@ struct ShopView: View {
                     .font(.headline)
                     .padding(.bottom, 2)
 
-                Text("\(pet.petPoints) PetPoints")
+                Text("\(pet.petPoints) PetPts")
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundColor(.yellow) // A distinctive color for currency
+                    .foregroundColor(.yellow)
                     .padding(.bottom, 10)
 
-                Text("Earn PetPoints by completing HealthKit activities and interacting with your pet!")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                Text("Earn PetPoints by excercising your body")
+                Text("you converted [number]!")
             }
-            .tag(0) // Assign a tag to this page
+            .tag(0)
 
             // Tab 2: Food Shop
             ScrollView {
                 VStack(spacing: 15) {
-                    Text("Food Shop")
-                        .font(.headline)
-                        .padding(.bottom, 5)
-
                     ForEach(FoodType.allCases) { foodType in
-                        let itemPrice = price(forFoodType: foodType)
-                        Button {
-                            itemNameToPurchase = foodType.rawValue
-                            itemPriceToPurchase = itemPrice
-                            maxQuantityToPurchase = calculateMaxQuantity(pricePerUnit: itemPrice)
-                            currentSelectionIsFood = true
-                            showingPurchaseSheet = true
-                        } label: {
-                            HStack {
-                                Text(foodType.rawValue)
-                                Spacer()
-                                Text("\(itemPrice) PP")
+                        FoodShopItemRow(
+                            foodType: foodType,
+                            price: price(forFoodType: foodType),
+                            action: {
+                                itemNameToPurchase = foodType.rawValue
+                                itemPriceToPurchase = price(forFoodType: foodType)
+                                maxQuantityToPurchase = 999
+                                showingPurchaseSheet = true
                             }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .tint(.green)
+                        )
                     }
                 }
-                .padding(.horizontal)
+                .padding()
+                .navigationTitle("Foods")
+
             }
-            .tag(1) // Assign a tag to this page
+            .tag(1)
 
             // Tab 3: Toy Shop
             ScrollView {
                 VStack(spacing: 15) {
-                    Text("Toy Shop")
-                        .font(.headline)
-                        .padding(.bottom, 5)
-
                     ForEach(ToyType.allCases) { toyType in
-                        let itemPrice = price(forToyType: toyType)
-                        Button {
-                            itemNameToPurchase = toyType.rawValue
-                            itemPriceToPurchase = itemPrice
-                            maxQuantityToPurchase = calculateMaxQuantity(pricePerUnit: itemPrice)
-                            currentSelectionIsFood = false
-                            showingPurchaseSheet = true
-                        } label: {
-                            HStack {
-                                Text(toyType.rawValue)
-                                Spacer()
-                                Text("\(itemPrice) PP")
+                        ToyShopItemRow(
+                            toyType: toyType,
+                            price: price(forToyType: toyType),
+                            action: {
+                                itemNameToPurchase = toyType.rawValue
+                                itemPriceToPurchase = price(forToyType: toyType)
+                                maxQuantityToPurchase = 999
+                                showingPurchaseSheet = true
                             }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .tint(.blue) // Different tint for toys
+                        )
                     }
                 }
-                .padding(.horizontal)
-            }
-            .tag(2) // Assign a tag to this page
+                .padding()
+                .navigationTitle("Toys")
 
+            }
+            .tag(2)
         }
-        .tabViewStyle(.page(indexDisplayMode: .automatic)) // Enable paged swiping
+        .tabViewStyle(.page(indexDisplayMode: .automatic))
         .navigationTitle("Shop")
         .navigationBarTitleDisplayMode(.inline)
-        // Attach the sheet modifier here to present PurchaseQuantityView
         .sheet(isPresented: $showingPurchaseSheet) {
             PurchaseQuantityView(
                 pet: pet,
@@ -131,22 +99,68 @@ struct ShopView: View {
                 itemPrice: itemPriceToPurchase,
                 maxQuantity: maxQuantityToPurchase
             ) { quantity in
-                // NEW: This closure is called when "Confirm" is pressed in PurchaseQuantityView
-                if currentSelectionIsFood {
+                // Actual purchase logic:
+                let totalCost = quantity * itemPriceToPurchase
+                if pet.petPoints >= totalCost {
+                    pet.petPoints -= totalCost
+
                     if let foodType = FoodType(rawValue: itemNameToPurchase) {
-                        _ = pet.buyFood(type: foodType, quantity: quantity, pricePerUnit: itemPriceToPurchase)
+                        pet.foodInventory[foodType, default: 0] += quantity
+                        print("Purchased \(quantity) \(itemNameToPurchase) for \(totalCost) PetPoints. New quantity: \(pet.foodInventory[foodType] ?? 0)")
+                    } else if let toyType = ToyType(rawValue: itemNameToPurchase) {
+                        pet.toyInventory[toyType, default: 0] += quantity
+                        print("Purchased \(quantity) \(itemNameToPurchase) for \(totalCost) PetPoints. New quantity: \(pet.toyInventory[toyType] ?? 0)")
                     }
                 } else {
-                    if let toyType = ToyType(rawValue: itemNameToPurchase) {
-                        _ = pet.buyToy(type: toyType, quantity: quantity, pricePerUnit: itemPriceToPurchase)
-                    }
+                    print("Not enough PetPoints to purchase \(itemNameToPurchase).")
                 }
-                // The sheet will automatically dismiss after the onConfirm closure finishes
             }
+        }
+    }
+
+    // MARK: - Helper Views for Shop Items
+
+    private struct FoodShopItemRow: View {
+        let foodType: FoodType
+        let price: Int
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack {
+                    Text(foodType.rawValue)
+                    Spacer()
+                    Text("\(price) PP")
+                }
+                .padding()
+                .background(Color.blue.opacity(0.2))
+                .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private struct ToyShopItemRow: View {
+        let toyType: ToyType
+        let price: Int
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack {
+                    Text(toyType.rawValue)
+                    Spacer()
+                    Text("\(price) PP")
+                }
+                .padding()
+                .background(Color.purple.opacity(0.2))
+                .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
         }
     }
 }
 
 #Preview {
-    ShopView(pet: PetModel()) // Pass a sample PetModel for the preview
+    ShopView(pet: PetModel())
 }

@@ -9,7 +9,9 @@ struct PetControlView: View {
 
     @State private var showingFoodSelection = false
     @State private var showingToySelection = false
-    @State private var showingKillConfirmation = false // NEW: State for kill confirmation
+    @State private var showingKillConfirmation = false
+    @State private var showingEvoView = false // State for presenting evoView
+    @State private var showingResetConfirmation = false // NEW: State for reset confirmation
 
     // Define a flexible grid layout for two columns
     private let gridItemLayout = [GridItem(.flexible()), GridItem(.flexible())]
@@ -45,23 +47,28 @@ struct PetControlView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
 
-                    // "Kill" button
-                    Button("Kill") {
-                        showingKillConfirmation = true // Trigger confirmation dialog
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(.red) // Make "Kill" button red for emphasis
-
-                    // "Evolve" button (functionality to be added later)
+                    // Evolve Button - opens evoView
                     Button("Evolve") {
-                        print("✨ Evolve button pressed!")
-                        // For now, just dismiss the view. Evolution logic to be added.
-                        dismiss()
+                        showingEvoView = true // Show the evolution view
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .tint(.green) // Make "Evolve" button green for emphasis
+
+                    Button("Kill") {
+                        showingKillConfirmation = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(.red)
+
+                    // NEW: Reset Data Button
+                    Button("Reset Data") {
+                        showingResetConfirmation = true // Show reset confirmation
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(.orange) // Give it a distinctive color
                 }
                 .padding(.bottom, 10)
             }
@@ -79,6 +86,10 @@ struct PetControlView: View {
                 self.dismiss()
             }
         }
+        // NEW: Sheet for Evolve View
+        .sheet(isPresented: $showingEvoView) {
+            EvoView() // Present the evolution view
+        }
         // NEW: Confirmation dialog for "Kill" button
         .confirmationDialog("Are you sure you want to kill your pet?",
                             isPresented: $showingKillConfirmation,
@@ -92,6 +103,20 @@ struct PetControlView: View {
             }
         } message: {
             Text("This action cannot be undone and will reset all your pet's progress.")
+        }
+        // NEW: Confirmation dialog for "Reset Data" button
+        .confirmationDialog("Are you sure you want to reset all data?",
+                            isPresented: $showingResetConfirmation,
+                            titleVisibility: .visible) {
+            Button("Confirm Reset", role: .destructive) {
+                pet.resetUser() // Reset all pet data
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {
+                // Do nothing
+            }
+        } message: {
+            Text("This will reset your pet points, inventory, and evolution progress.")
         }
     }
 }
