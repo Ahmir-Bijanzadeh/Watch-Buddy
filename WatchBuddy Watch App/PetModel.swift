@@ -3,6 +3,10 @@
 import Foundation
 import Combine
 
+enum PetMood: String {
+    case idle, happy, hungry, sleepy, angry
+}
+
 enum PetAction: String {
     case none
     case feed
@@ -19,7 +23,6 @@ enum FoodType: String, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
-// NEW: Enum for different toy types
 enum ToyType: String, CaseIterable, Identifiable {
     case ball = "Ball"
     case rope = "Rope"
@@ -38,14 +41,16 @@ class PetModel: ObservableObject {
     @Published var runningLevel: Double = 0.0
     @Published var swimmingLevel: Double = 0.0
     @Published var cyclingLevel: Double = 0.0
+    @Published var lastSleepHours: Double = 0.0 // NEW: To store the last fetched sleep hours
 
     @Published var activeAction: PetAction = .none
     @Published var selectedFoodType: FoodType? = nil
-    // NEW: Property to store the selected toy type
     @Published var selectedToyType: ToyType? = nil
 
-
     @Published var petName: String = "My Buddy"
+
+    // NEW: Currency for the shop
+    @Published var petPoints: Int = 300 // Initial placeholder value
 
     // Food inventory
     @Published var foodInventory: [FoodType: Int] = [
@@ -56,40 +61,97 @@ class PetModel: ObservableObject {
 
     // NEW: Toy inventory
     @Published var toyInventory: [ToyType: Int] = [
-        .ball: 3,
-        .rope: 2,
-        .squeakyToy: 1
+        .ball: 5,
+        .rope: 3,
+        .squeakyToy: 2
     ]
 
-    init() {
-        // You can set initial inventory here if not using the above default values
-    }
-
+    // NEW: Computed property for pet's overall mood
     var derivedMood: PetMood {
-        if hunger > 60.0 {
+        if hunger >= 80.0 {
             return .hungry
-        } else if happiness < 30.0 {
-            return .angry
-        } else if happiness > 80.0 {
-            return .happy
-        } else if sleepiness > 75.0 {
+        } else if sleepiness >= 80.0 {
             return .sleepy
+        } else if cleanliness <= 20.0 {
+            return .angry // Or .grumpy, depending on desired mood types
+        } else if happiness >= 70.0 {
+            return .happy
         } else {
             return .idle
         }
     }
 
-    func updateFromHealthKit(run: Double, swim: Double, cycle: Double) {
-        runningLevel = min(100.0, (run / 100.0))
-        swimmingLevel = min(100.0, (swim / 50.0))
-        cyclingLevel = min(100.0, (cycle / 150.0))
 
-        sleepiness = max(0.0, sleepiness - (run / 500.0) - (swim / 200.0) - (cycle / 300.0))
-        happiness = min(100.0, happiness + (run / 1000.0) + (swim / 400.0) + (cycle / 600.0))
-        hunger = min(100.0, hunger + (run / 200.0) + (swim / 80.0) + (cycle / 120.0))
+    // NEW: Function to buy food
+    /// Attempts to buy a specified quantity of food.
+    /// - Parameters:
+    ///   - type: The `FoodType` to buy.
+    ///   - quantity: The number of units to buy.
+    ///   - pricePerUnit: The cost of a single unit of food.
+    /// - Returns: `true` if the purchase was successful, `false` otherwise.
+    func buyFood(type: FoodType, quantity: Int, pricePerUnit: Int) -> Bool {
+        let totalCost = quantity * pricePerUnit
+        guard petPoints >= totalCost else {
+            print("Not enough PetPoints to buy \(quantity) \(type.rawValue). Need \(totalCost) but have \(petPoints).")
+            return false
+        }
+
+        petPoints -= totalCost
+        foodInventory[type, default: 0] += quantity
+        print("Successfully bought \(quantity) \(type.rawValue) for \(totalCost) PetPoints. New inventory: \(foodInventory[type] ?? 0)")
+        return true
     }
 
+    // NEW: Function to buy toys
+    /// Attempts to buy a specified quantity of toys.
+    /// - Parameters:
+    ///   - type: The `ToyType` to buy.
+    ///   - quantity: The number of units to buy.
+    ///   - pricePerUnit: The cost of a single unit of toy.
+    /// - Returns: `true` if the purchase was successful, `false` otherwise.
+    func buyToy(type: ToyType, quantity: Int, pricePerUnit: Int) -> Bool {
+        let totalCost = quantity * pricePerUnit
+        guard petPoints >= totalCost else {
+            print("Not enough PetPoints to buy \(quantity) \(type.rawValue). Need \(totalCost) but have \(petPoints).")
+            return false
+        }
+
+        petPoints -= totalCost
+        toyInventory[type, default: 0] += quantity
+        print("Successfully bought \(quantity) \(type.rawValue) for \(totalCost) PetPoints. New inventory: \(toyInventory[type] ?? 0)")
+        return true
+    }
+
+    // NEW: Reset pet stats and inventory
+    func resetStats() {
+        hunger = 50.0
+        happiness = 50.0
+        cleanliness = 50.0
+        sleepiness = 50.0
+        runningLevel = 0.0
+        swimmingLevel = 0.0
+        cyclingLevel = 0.0
+        lastSleepHours = 0.0
+        petPoints = 0 // Reset currency too
+        foodInventory = [
+            .kibble: 0,
+            .treat: 0,
+            .fruit: 0
+        ]
+        toyInventory = [
+            .ball: 0,
+            .rope: 0,
+            .squeakyToy: 0
+        ]
+        activeAction = .none
+        selectedFoodType = nil
+        selectedToyType = nil
+        print("🚫 Pet stats, inventory, and points reset!")
+    }
+
+
     func feed(type: FoodType) {
+        // Ensure there's food in inventory
         guard let currentQuantity = foodInventory[type], currentQuantity > 0 else {
             print("❌ Cannot feed: \(type.rawValue) out of stock.")
             return // Prevent feeding if out of stock
@@ -100,18 +162,19 @@ class PetModel: ObservableObject {
         switch type {
         case .kibble:
             hunger = max(0.0, hunger - 20.0)
-            happiness = min(100.0, happiness + 5.0)
+            happiness = min(100.0, happiness + 10.0)
+            cleanliness = max(0.0, cleanliness - 5.0)
         case .treat:
             hunger = max(0.0, hunger - 10.0)
-            happiness = min(100.0, happiness + 15.0)
+            happiness = min(100.0, happiness + 20.0)
+            cleanliness = max(0.0, cleanliness - 2.0)
         case .fruit:
             hunger = max(0.0, hunger - 15.0)
-            happiness = min(100.0, happiness + 10.0)
-            cleanliness = max(0.0, cleanliness - 2.0)
+            happiness = min(100.0, happiness + 15.0)
+            cleanliness = max(0.0, cleanliness - 3.0)
         }
     }
 
-    // MODIFIED: play method now accepts a ToyType and handles inventory
     func play(type: ToyType) {
         guard let currentQuantity = toyInventory[type], currentQuantity > 0 else {
             print("❌ Cannot play: \(type.rawValue) out of stock.")
@@ -147,14 +210,27 @@ class PetModel: ObservableObject {
     }
 
     func degradeStats() {
-        hunger = min(100.0, hunger + 0.5)
-        happiness = max(0.0, happiness - 0.3)
-        cleanliness = max(0.0, cleanliness - 0.2)
-        sleepiness = min(100.0, sleepiness + 0.4)
+        hunger = min(100.0, hunger + 5.0)
+        happiness = max(0.0, happiness - 3.0)
+        cleanliness = min(100.0, cleanliness + 7.0)
+        sleepiness = min(100.0, sleepiness + 4.0)
+    }
 
-        hunger = min(max(hunger, 0.0), 100.0)
-        happiness = min(max(happiness, 0.0), 100.0)
-        cleanliness = min(max(cleanliness, 0.0), 100.0)
-        sleepiness = min(max(sleepiness, 0.0), 100.0)
+    // MODIFIED: updateFromHealthKit now accepts sleepHours
+    func updateFromHealthKit(running: Double, swimming: Double, cycling: Double, sleepHours: Double) {
+        runningLevel = min(100.0, running / 100.0) // Example: 100m running fills 100%
+        swimmingLevel = min(100.0, swimming / 50.0) // Example: 50m swimming fills 100%
+        cyclingLevel = min(100.0, cycling / 200.0) // Example: 200m cycling fills 100%
+        lastSleepHours = sleepHours // Store the sleep hours
+
+        // Example: Award pet points for activity
+        petPoints += Int(running / 500) // 1 point per 500m running
+        petPoints += Int(swimming / 100) // 1 point per 100m swimming
+        petPoints += Int(cycling / 1000) // 1 point per 1000m cycling
+        petPoints += Int(sleepHours * 5) // 5 points per hour of sleep
+
+        // Adjust pet stats based on activity
+        happiness = min(100.0, happiness + (runningLevel * 0.1) + (swimmingLevel * 0.1) + (cyclingLevel * 0.1))
+        sleepiness = max(0.0, sleepiness - (sleepHours * 5)) // Reduce sleepiness based on sleep
     }
 }

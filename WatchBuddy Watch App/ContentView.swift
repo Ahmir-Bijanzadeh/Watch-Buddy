@@ -11,7 +11,6 @@ struct ContentView: View {
     private let scene = PetGameScene()
 
     @State private var tapFeedbackMessage: String? = nil
-
     @State private var showingRenameSheet = false
 
     var body: some View {
@@ -33,20 +32,22 @@ struct ContentView: View {
                                 healthManager.requestAuthorization { success in
                                     if success {
                                         print("✅ HealthKit authorized")
-                                        healthManager.fetchTodayActivity { run, swim, cycle in
-                                            print("🏃‍♂️ Running: \(run)m, 🏊‍♀️ Swimming: \(swim)m, 🚴‍♂️ Cycling: \(cycle)m")
-                                            pet.updateFromHealthKit(run: run, swim: swim, cycle: cycle)
-                                        }
+                                        // Update to include sleepHours in fetchTodayActivity
+                                        healthManager.fetchTodayActivity { run, swim, cycle, sleepHours in
+                                            print("🏃‍♂️ Running: \(run)m, 🏊‍♀️ Swimming: \(swim)m, 🚴‍♂️ Cycling: \(cycle)m, 😴 Sleep: \(sleepHours)h")
+                                            pet.updateFromHealthKit(running: run, swimming: swim, cycling: cycle, sleepHours: sleepHours)
+                                                                                        }
                                     } else {
                                         print("❌ HealthKit not authorized")
                                     }
                                 }
 
+                                // Mood setup + timer
                                 scene.setMood(pet.derivedMood, force: true)
                                 lastMood = pet.derivedMood
                                 startMoodSyncLoop(for: scene)
                             }
-                            .contentShape(Rectangle())
+                            .contentShape(Rectangle()) // Make entire area tappable
                             .onTapGesture {
                                 performActiveAction()
                             }
@@ -65,12 +66,13 @@ struct ContentView: View {
                                         tapFeedbackMessage = nil
                                     }
                                 }
-                                .offset(y: 10)
+                                .offset(y: 10) // Adjust position
                         }
                     }
 
-                    Spacer(minLength: 5)
+                    Spacer(minLength: 5) // Add some space
 
+                    // Hint text for persistent actions
                     if pet.activeAction != .none {
                         Text("\(pet.activeAction.rawValue)ing (Tap here to cancel)")
                             .font(.footnote)
@@ -79,25 +81,52 @@ struct ContentView: View {
                             .transition(.opacity)
                             .animation(.easeIn(duration: 0.2), value: pet.activeAction)
                             .padding(.bottom, 5)
-                            .onTapGesture {
+                            .onTapGesture { // Tap to cancel persistent action
                                 pet.activeAction = .none
                                 pet.selectedFoodType = nil
                                 pet.selectedToyType = nil
                             }
                     }
 
-                    NavigationLink {
-                        PetControlView(pet: pet, gameScene: scene)
-                    } label: {
-                        Text("Pet Controls")
-                            .font(.headline)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity)
-                            .background(Capsule().fill(Color.accentColor))
-                            .foregroundColor(.white)
+                    // Horizontal row for buttons (now with Shop)
+                    HStack {
+                        // NavigationLink for PetStatsView
+                        NavigationLink {
+                            PetStatsView(pet: pet)
+                        } label: {
+                            Text("Stats")
+                                .font(.headline)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: .infinity)
+                                .background(Capsule().fill(Color.orange))
+                                .foregroundColor(.white)
+                        }
+
+                        // NavigationLink for PetControlView (Interact)
+                        NavigationLink {
+                            PetControlView(pet: pet, gameScene: scene)
+                        } label: {
+                            Text("Interact")
+                                .font(.headline)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: .infinity)
+                                .background(Capsule().fill(Color.accentColor))
+                                .foregroundColor(.white)
+                        }
+
+                        // NEW: NavigationLink for ShopView - Pass the pet object
+                        NavigationLink {
+                            ShopView(pet: pet) // Pass the pet object here
+                        } label: {
+                            Text("Shop")
+                                .font(.headline)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: .infinity)
+                                .background(Capsule().fill(Color.blue))
+                                .foregroundColor(.white)
+                        }
                     }
                     .padding(.bottom, 5)
-
                 }
                 .padding(.horizontal)
             }
@@ -120,7 +149,6 @@ struct ContentView: View {
                     pet.selectedFoodType = nil
                     tapFeedbackMessage = "Ran out of \(foodType.rawValue)!"
                 }
-
             } else {
                 tapFeedbackMessage = "What to feed?"
             }
@@ -140,17 +168,16 @@ struct ContentView: View {
                 tapFeedbackMessage = "What to play with?"
             }
 
-        case .clean: // MODIFIED: Clean action now persists
+        case .clean:
             pet.clean()
             scene.showCleanEffect()
             tapFeedbackMessage = "Sparkling!"
-            // pet.activeAction = .none // REMOVED this line to make the action persistent
 
         case .sleep:
             pet.sleep()
             scene.showSleepEffect()
             tapFeedbackMessage = "Zzzzzz..."
-            pet.activeAction = .none // Sleep is still a one-time action
+            pet.activeAction = .none
 
         case .none:
             tapFeedbackMessage = "Hey!"
@@ -172,3 +199,6 @@ struct ContentView: View {
     }
 }
 
+#Preview {
+    ContentView()
+}

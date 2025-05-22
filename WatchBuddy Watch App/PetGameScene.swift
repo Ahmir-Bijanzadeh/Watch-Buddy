@@ -2,13 +2,12 @@
 
 import SpriteKit
 
-enum PetMood: String {
-    case idle, happy, hungry, sleepy, angry
-}
+// REMOVED: enum PetMood: String { ... }
+// This definition has been moved to PetModel.swift to resolve scope issues.
 
 class PetGameScene: SKScene {
     private var petSprite: SKSpriteNode!
-    private var currentMood: PetMood = .idle
+    private var currentMood: PetMood = .idle // PetMood is now accessible from PetModel
 
     private let petZPosition: CGFloat = 10
 
@@ -80,6 +79,6 @@ class PetGameScene: SKScene {
             return SKAction.wait(forDuration: 1.0)
         }
 
-        return SKAction.animate(with: textures, timePerFrame: 0.1, resize: false, restore: false)
+        return SKAction.animate(with: textures, timePerFrame: 0.1, resize: true, restore: true)
     }
 }

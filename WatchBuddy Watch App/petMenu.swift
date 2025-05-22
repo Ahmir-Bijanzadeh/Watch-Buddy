@@ -8,65 +8,90 @@ struct PetControlView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var showingFoodSelection = false
-    // NEW: State to control the presentation of the toy selection sheet
     @State private var showingToySelection = false
+    @State private var showingKillConfirmation = false // NEW: State for kill confirmation
+
+    // Define a flexible grid layout for two columns
+    private let gridItemLayout = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
         ScrollView {
             VStack {
-                HStack {
+                // Use LazyVGrid to arrange buttons in a 2x3 grid
+                LazyVGrid(columns: gridItemLayout, spacing: 10) {
                     Button("Feed") {
                         showingFoodSelection = true
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
                     Button("Play") {
-                        // MODIFIED: Show the toy selection sheet
                         showingToySelection = true
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
                     Button("Clean") {
                         pet.activeAction = .clean
                         dismiss()
                     }
-                }
-                .padding(.bottom, 10)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    StatProgressBar(title: "Hunger", value: pet.hunger, color: .red)
-                    StatProgressBar(title: "Happiness", value: pet.happiness, color: .green)
-                    StatProgressBar(title: "Cleanliness", value: pet.cleanliness, color: .blue)
-                    StatProgressBar(title: "Sleepiness", value: pet.sleepiness, color: .purple)
-
-                    StatProgressBar(title: "Running", value: pet.runningLevel, color: .orange)
-                    StatProgressBar(title: "Swimming", value: pet.swimmingLevel, color: .mint)
-                    StatProgressBar(title: "Cycling", value: pet.cyclingLevel, color: .yellow)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
 
                     Button("Sleep") {
                         pet.activeAction = .sleep
                         dismiss()
                     }
-                    .padding(.top, 10)
-                }
-                .font(.footnote)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
 
-                Button("Return to Pet") {
-                    dismiss()
+                    // "Kill" button
+                    Button("Kill") {
+                        showingKillConfirmation = true // Trigger confirmation dialog
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(.red) // Make "Kill" button red for emphasis
+
+                    // "Evolve" button (functionality to be added later)
+                    Button("Evolve") {
+                        print("✨ Evolve button pressed!")
+                        // For now, just dismiss the view. Evolution logic to be added.
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(.green) // Make "Evolve" button green for emphasis
                 }
-                .padding(.top, 10)
-                .tint(.secondary)
+                .padding(.bottom, 10)
             }
             .padding(.horizontal)
         }
-        .navigationTitle("Pet Controls")
+        .navigationTitle("Pet Actions")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingFoodSelection) {
             FoodSelectionView(pet: pet) {
                 self.dismiss()
             }
         }
-        // NEW: Present ToySelectionView as a sheet
         .sheet(isPresented: $showingToySelection) {
             ToySelectionView(pet: pet) {
                 self.dismiss()
             }
+        }
+        // NEW: Confirmation dialog for "Kill" button
+        .confirmationDialog("Are you sure you want to kill your pet?",
+                            isPresented: $showingKillConfirmation,
+                            titleVisibility: .visible) {
+            Button("Confirm Kill", role: .destructive) {
+                pet.resetStats() // Reset all pet stats
+                dismiss() // Return to the main pet screen (ContentView)
+            }
+            Button("Cancel", role: .cancel) {
+                // Do nothing, dialog will dismiss
+            }
+        } message: {
+            Text("This action cannot be undone and will reset all your pet's progress.")
         }
     }
 }
